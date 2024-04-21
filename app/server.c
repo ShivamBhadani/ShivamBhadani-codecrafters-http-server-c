@@ -1,61 +1,67 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/socket.h>
+#include<stdio.h>
 #include <netinet/in.h>
-#include <netinet/ip.h>
+#include <sys/socket.h>
 #include <string.h>
-#include <errno.h>
+#include <arpa/inet.h>
 #include <unistd.h>
 
-int main() {
-	// Disable output buffering
-	setbuf(stdout, NULL);
+#define PORT 8181
 
-	// You can use print statements as follows for debugging, they'll be visible when running tests.
-	printf("Logs from your program will appear here!\n");
+int main(){
+    int serverfiledescriptor, clientfiledescriptor;
+    socklen_t clientlength;
+    struct sockaddr_in server_address, client_address;
+    
+    memset(&server_address, 0, sizeof(server_address));
+    memset(&client_address, 0, sizeof(client_address));
 
-	// Uncomment this block to pass the first stage
-	//
-	int server_fd, client_addr_len;
-	struct sockaddr_in client_addr;
-	
-	server_fd = socket(AF_INET, SOCK_STREAM, 0);
-	if (server_fd == -1) {
-		printf("Socket creation failed: %s...\n", strerror(errno));
-		return 1;
-	}
-	
-	// Since the tester restarts your program quite often, setting REUSE_PORT
-	// ensures that we don't run into 'Address already in use' errors
-	int reuse = 1;
-	if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEPORT, &reuse, sizeof(reuse)) < 0) {
-		printf("SO_REUSEPORT failed: %s \n", strerror(errno));
-		return 1;
-	}
-	
-	struct sockaddr_in serv_addr = { .sin_family = AF_INET ,
-									 .sin_port = htons(4221),
-									 .sin_addr = { htonl(INADDR_ANY) },
-									};
-	
-	if (bind(server_fd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) != 0) {
-		printf("Bind failed: %s \n", strerror(errno));
-		return 1;
-	}
-	
-	int connection_backlog = 5;
-	if (listen(server_fd, connection_backlog) != 0) {
-		printf("Listen failed: %s \n", strerror(errno));
-		return 1;
-	}
-	
-	printf("Waiting for a client to connect...\n");
-	client_addr_len = sizeof(client_addr);
-	
-	accept(server_fd, (struct sockaddr *) &client_addr, &client_addr_len);
-	printf("Client connected\n");
-	
-	close(server_fd);
+    char buffer[512];
+    // char *message = "HEAD / HTTP/1.0\r\n\r\n";
+    char *message ="HTTP/1.1 200 OK\r\n\r\n";
 
-	return 0;
+    serverfiledescriptor = socket(AF_INET, SOCK_STREAM, 0);
+    if(serverfiledescriptor < 0){
+        fprintf(stderr, "Error creating socket\n");
+        return 1;
+    }
+
+    server_address.sin_family = AF_INET;
+    server_address.sin_port = htons(PORT);
+    server_address.sin_addr.s_addr = 0;
+
+    if(bind(serverfiledescriptor, (struct sockaddr *)&server_address, sizeof(server_address)) < 0){
+        fprintf(stderr, "Error binding socket\n");
+        return 1;
+    }
+
+    if(listen(serverfiledescriptor, 5) < 0){
+        fprintf(stderr, "Error listening on socket\n");
+        return 1;
+    }
+
+    clientlength = sizeof(client_address);
+
+    clientfiledescriptor = accept(serverfiledescriptor, (struct sockaddr *)&client_address, &clientlength);
+    if(clientfiledescriptor < 0){
+        fprintf(stderr, "Error accepting connection\n");
+        return 1;
+    }
+
+    memset(buffer, 0, 512);
+    if(read(clientfiledescriptor, buffer, 511) < 0){
+        fprintf(stderr, "Error reading from socket\n");
+        return 1;
+    }
+
+    printf("Received: %s\n", buffer);
+
+    if(write(clientfiledescriptor, message, strlen(message)) < 0){
+        fprintf(stderr, "Error writing to socket\n");
+        return 1;
+    }
+
+    close(clientfiledescriptor);
+    close(serverfiledescriptor);
+
+    return 0;
 }
