@@ -5,7 +5,7 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 
-#define PORT 8181
+#define PORT 4221
 
 int main(){
     int serverfiledescriptor, clientfiledescriptor;
