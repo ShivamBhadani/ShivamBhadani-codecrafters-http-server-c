@@ -4,8 +4,6 @@
 #include <string.h>
 #include <arpa/inet.h>
 #include <unistd.h>
-// #include <asm-generic/socket.h>
-#include <errno.h>
 
 #define PORT 4221
 #define SO_REUSEPORT 15
@@ -65,43 +63,22 @@ int main(){
     }
 
     printf("Received: %s\n", buffer);
-    // int i;
-    // for( i=0;i<512;i++){
-    //     // printf("%c", buffer[i]);
-    //     if(buffer[i] == '/'){
-    //         break;
-    //     }
-    // }
-    char *method = strtok(buffer, " ");
-  // Get method
-  if (!strcmp(method, "GET")) {
-    char *path = strtok(NULL, " ");
-    if (!strcmp(path, "/")) {
-      char response[] = "HTTP/1.1 200 OK\r\n\r\n";
-      send(clientfiledescriptor, response, sizeof(response), 0);
-    } else {
-      char response[] = "HTTP/1.1 404 Not Found\r\n\r\n";
-      send(clientfiledescriptor, response, sizeof(response), 0);
+    int i;
+    for( i=0;i<512;i++){
+        // printf("%c", buffer[i]);
+        if(buffer[i] == '/'){
+            break;
+        }
     }
-  }
-    
-        // printf("%c\n", buffer[++i]);
-    // if(buffer[++i] == ' '){
-    //     if(write(clientfiledescriptor, message1, strlen(message1)) < 0){
-    //         fprintf(stderr, "Error writing to socket\n");
-    //         return 1;
-    //     }
-    // }else{
-    //     if(write(clientfiledescriptor, message2, strlen(message2)) < 0){
-    //         fprintf(stderr, "Error writing to socket\n");
-    //         return 1;
-    //     }
-    // }
+    if(buffer[++i] == ' '){
+        printf("HTTP/1.1 200 OK\n");
+        send(clientfiledescriptor, message1, strlen(message1), 0);
+    }else{
+        printf("HTTP/1.1 404 Not Found\n");
+        send(clientfiledescriptor, message2, strlen(message2), 0);
+    }
+    char *method = strtok(buffer, " ");
 
-    // if(write(clientfiledescriptor, message, strlen(message)) < 0){
-    //     fprintf(stderr, "Error writing to socket\n");
-    //     return 1;
-    // }
 
     close(clientfiledescriptor);
     close(serverfiledescriptor);
