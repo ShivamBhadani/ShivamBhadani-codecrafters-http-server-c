@@ -4,8 +4,11 @@
 #include <string.h>
 #include <arpa/inet.h>
 #include <unistd.h>
+// #include <asm-generic/socket.h>
+#include <errno.h>
 
 #define PORT 4221
+#define SO_REUSEPORT 15
 
 int main(){
     int serverfiledescriptor, clientfiledescriptor;
@@ -25,6 +28,13 @@ int main(){
         fprintf(stderr, "Error creating socket\n");
         return 1;
     }
+
+     int reuse = 1;
+  if (setsockopt(serverfiledescriptor, SOL_SOCKET, SO_REUSEPORT, &reuse, sizeof(reuse)) <
+      0) {
+    printf("SO_REUSEPORT failed:\n");
+    return 1;
+  }
 
     server_address.sin_family = AF_INET;
     server_address.sin_port = htons(PORT);
@@ -53,31 +63,40 @@ int main(){
         fprintf(stderr, "Error reading from socket\n");
         return 1;
     }
-    for(int i=0; i<512; i++){
-        
-    }
 
-    // printf("Received: %s\n", buffer);
-    int i;
-    for( i=0;i<512;i++){
-        // printf("%c", buffer[i]);
-        if(buffer[i] == '/'){
-            break;
-        }
+    printf("Received: %s\n", buffer);
+    // int i;
+    // for( i=0;i<512;i++){
+    //     // printf("%c", buffer[i]);
+    //     if(buffer[i] == '/'){
+    //         break;
+    //     }
+    // }
+    char *method = strtok(buffer, " ");
+  // Get method
+  if (!strcmp(method, "GET")) {
+    char *path = strtok(NULL, " ");
+    if (!strcmp(path, "/")) {
+      char response[] = "HTTP/1.1 200 OK\r\n\r\n";
+      send(clientfiledescriptor, response, sizeof(response), 0);
+    } else {
+      char response[] = "HTTP/1.1 404 Not Found\r\n\r\n";
+      send(clientfiledescriptor, response, sizeof(response), 0);
     }
+  }
     
         // printf("%c\n", buffer[++i]);
-    if(buffer[++i] == ' '){
-        if(write(clientfiledescriptor, message1, strlen(message1)) < 0){
-            fprintf(stderr, "Error writing to socket\n");
-            return 1;
-        }
-    }else{
-        if(write(clientfiledescriptor, message2, strlen(message2)) < 0){
-            fprintf(stderr, "Error writing to socket\n");
-            return 1;
-        }
-    }
+    // if(buffer[++i] == ' '){
+    //     if(write(clientfiledescriptor, message1, strlen(message1)) < 0){
+    //         fprintf(stderr, "Error writing to socket\n");
+    //         return 1;
+    //     }
+    // }else{
+    //     if(write(clientfiledescriptor, message2, strlen(message2)) < 0){
+    //         fprintf(stderr, "Error writing to socket\n");
+    //         return 1;
+    //     }
+    // }
 
     // if(write(clientfiledescriptor, message, strlen(message)) < 0){
     //     fprintf(stderr, "Error writing to socket\n");
