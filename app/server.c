@@ -1,87 +1,148 @@
-#include<stdio.h>
+#include <stdio.h>
 #include <netinet/in.h>
+#include <netinet/ip.h>
 #include <sys/socket.h>
 #include <string.h>
 #include <arpa/inet.h>
 #include <unistd.h>
+#include <stdlib.h>
+#include <errno.h>
 
-#define PORT 4221
+#define port 4221
 #define SO_REUSEPORT 15
 
-int main(){
+int server_init(int port_no);
+int client_init(int serverfiledescriptor);
+void client_handler(int serverfiledescriptor, int clientfiledescriptor);//{return;};
+
+int main(int argc, char *argv[]){
+
     int serverfiledescriptor, clientfiledescriptor;
-    socklen_t clientlength;
-    struct sockaddr_in server_address, client_address;
-    
-    memset(&server_address, 0, sizeof(server_address));
-    memset(&client_address, 0, sizeof(client_address));
+   
 
-    char buffer[512];
-    // char *message = "HEAD / HTTP/1.0\r\n\r\n";
-     char *message1 ="HTTP/1.1 200 OK\r\n\r\n";
-    char *message2 = "HTTP/1.1 404 Not Found\r\n\r\n";
-
-    serverfiledescriptor = socket(AF_INET, SOCK_STREAM, 0);
+    serverfiledescriptor =  server_init(port);
     if(serverfiledescriptor < 0){
         fprintf(stderr, "Error creating socket\n");
         return 1;
+    }    
+
+    printf("Server listening on port %d\n", port);
+
+    
+    
+        clientfiledescriptor = client_init(serverfiledescriptor);
+        if(clientfiledescriptor < 0){
+            fprintf(stderr, "Error accepting connection\n");
+        }
+
+        printf("Client connected\n");
+
+        
+        client_handler(serverfiledescriptor, clientfiledescriptor);
+
+        
+
+    
+    return -1;
+}
+
+int server_init(int port_no){
+    int serverfiledescriptor;
+
+    struct sockaddr_in server_address;
+
+    memset(&server_address, 0, sizeof(server_address));
+
+    serverfiledescriptor = socket(AF_INET, SOCK_STREAM, 0);
+
+    if(serverfiledescriptor < 0){
+        return -1;
     }
 
-     int reuse = 1;
-  if (setsockopt(serverfiledescriptor, SOL_SOCKET, SO_REUSEPORT, &reuse, sizeof(reuse)) <
-      0) {
-    printf("SO_REUSEPORT failed:\n");
-    return 1;
-  }
-
     server_address.sin_family = AF_INET;
-    server_address.sin_port = htons(PORT);
+    server_address.sin_port = htons(port);
     server_address.sin_addr.s_addr = 0;
 
+      int reuse = 1;
+  if (setsockopt(serverfiledescriptor, SOL_SOCKET, SO_REUSEPORT, &reuse, sizeof(reuse)) <
+      0) {
+    printf("SO_REUSEPORT failed: %s \n", strerror(errno));
+    return 1;
+  }
     if(bind(serverfiledescriptor, (struct sockaddr *)&server_address, sizeof(server_address)) < 0){
         fprintf(stderr, "Error binding socket\n");
-        return 1;
+        return -1;
     }
 
     if(listen(serverfiledescriptor, 5) < 0){
         fprintf(stderr, "Error listening on socket\n");
-        return 1;
+        return -1;
     }
+
+
+    return serverfiledescriptor;
+
+}
+
+int client_init(int serverfiledescriptor){
+    int clientfiledescriptor;
+    socklen_t clientlength;
+    struct sockaddr_in client_address;
+
+    memset(&client_address, 0, sizeof(client_address));
 
     clientlength = sizeof(client_address);
 
     clientfiledescriptor = accept(serverfiledescriptor, (struct sockaddr *)&client_address, &clientlength);
     if(clientfiledescriptor < 0){
         fprintf(stderr, "Error accepting connection\n");
-        return 1;
+        return -1;
     }
 
-    memset(buffer, 0, 512);
-    if(read(clientfiledescriptor, buffer, 511) < 0){
-        fprintf(stderr, "Error reading from socket\n");
-        return 1;
+    return clientfiledescriptor;
+
+}
+
+void client_handler(int serverfiledescriptor, int clientfiledescriptor){
+    char buffer[1024];
+    int bytes_read;
+    char response[1024];
+    bytes_read = read(clientfiledescriptor, buffer, sizeof(buffer));
+    if(bytes_read < 0){
+        fprintf(stderr, "Error reading from client\n");
+        return;
+    }
+    // write(1, buffer, bytes_read);
+    char* method = strtok(buffer, " ");
+    char* path = strtok(NULL, " ");
+    char* protocol = strtok(NULL, "\r\n");
+    char *version = strtok(protocol, "/");
+    version = strtok(NULL, "\r\n");
+    printf("Method: %s\n", method);
+    printf("Path: %s\n", path);
+    printf("Protocol: %s\n", protocol);
+    printf("Version: %s\n", version);
+    
+    if (strcmp(path, "/") == 0) 
+    strcpy(response, "HTTP/1.1 200 OK\r\n\r\n");
+
+    
+    else if (strncmp(path, "/echo/", 6) == 0) {
+        strtok(path, "/");
+        char *input = &path[6];
+        printf("%s\n", input);
+        sprintf(response,
+                "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: "
+                "%ld\r\n\r\n"
+                "%s\r\n\r\n",
+                strlen(input), input);
     }
 
-    printf("Received: %s\n", buffer);
-    int i;
-    for( i=0;i<512;i++){
-        // printf("%c", buffer[i]);
-        if(buffer[i] == '/'){
-            break;
-        }
-    }
-    if(buffer[++i] == ' '){
-        printf("HTTP/1.1 200 OK\n");
-        send(clientfiledescriptor, message1, strlen(message1), 0);
-    }else{
-        printf("HTTP/1.1 404 Not Found\n");
-        send(clientfiledescriptor, message2, strlen(message2), 0);
-    }
-    char *method = strtok(buffer, " ");
+    
+    else strcpy(response, "HTTP/1.1 404 Not Found\r\n\r\n");
 
-
+    write(clientfiledescriptor, response, strlen(response));
     close(clientfiledescriptor);
-    close(serverfiledescriptor);
 
-    return 0;
+    return;
 }
